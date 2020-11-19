@@ -54,7 +54,7 @@ def pmf_from_cmf(cmf, force=False):
 
     if total != 1:
         print("WARNING: extrapolating pmf from incomplete cmf")
-        print("         pmf aggiusted by factor %.10f" % total)
+        print("         pmf adjusted by factor %.10f" % total)
 
     return pmf
 
