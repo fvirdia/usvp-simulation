@@ -1,0 +1,23 @@
+36a37,39
+> from fpylll import BKZ as fpBKZ
+> from fpylll.tools.bkz_simulator import simulate as CN11_simulate
+> from sage.all import sqrt
+2099a2103,2104
+>     use_sim_for_beta = False # set to True to use CN11
+> 
+2101c2106,2110
+<         return delta_0.log() * (2 * block_size - d) + (kannan_coeff.log() + n * scale.log() + (d - n - 1) * q.log()) / d
+---
+>         if use_sim_for_beta:
+>             profile = CN11_simulate(LLLProfile(n, q, d-n-1, nu=scale), fpBKZ.Param(block_size=block_size, max_loops=16))[0]
+>             return log(profile[d-int(block_size)])/2
+>         else:
+>             return delta_0.log() * (2 * block_size - d) + (kannan_coeff.log() + n * scale.log() + (d - n - 1) * q.log()) / d
+2114c2123,2127
+<         rhs = delta_0 ** (2 * block_size - d) * (kannan_coeff * scale ** n * q ** (d - n - 1)) ** (ZZ(1) / d)
+---
+>         if use_sim_for_beta:
+>             profile = CN11_simulate(LLLProfile(n, q, d-n-1, nu=scale), fpBKZ.Param(block_size=block_size, max_loops=16))[0]
+>             rhs = sqrt(profile[d-int(block_size)])
+>         else:
+>             rhs = delta_0 ** (2 * block_size - d) * (kannan_coeff * scale ** n * q ** (d - n - 1)) ** (ZZ(1) / d)

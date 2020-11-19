@@ -1,0 +1,37 @@
+4a5
+> from sage.all import exp as expp
+205c206
+<     return RR(delta**(d - 1 - 2 * i) * exp(logvol / d))
+---
+>     return RR(delta**(d - 1 - 2 * i) * expp(logvol / d))
+214c215
+<                 log(pruning_proba) / d) / log(2.) for d in range(46, 1000)]
+---
+>                 log(pruning_proba) / d) / log(2.) for d in range(46, 10000)]
+239c240
+< chisquared_table = {i: None for i in range(1000)}
+---
+> chisquared_table = {i: None for i in range(10000)}
+242c243
+< for i in range(1000):
+---
+> for i in range(10000):
+265c266,268
+<         PC2 = (D2(l2_max) - D2(l2_min)) / PE2
+---
+>         PC2 = (D2(l2_max) - D2(l2_min))
+>         if PE2 != 0:
+>             PC2 /= PE2
+273c276
+< def compute_beta_delta(d, logvol, tours=1, interpolate=True, probabilistic=False):
+---
+> def compute_beta_delta(d, logvol, tours=1, interpolate=True, probabilistic=True):
+313a317
+>         p_b_first_viable = {}
+334a339
+>                 p_b_first_viable[beta] = remaining_proba * proba
+345,346c350
+<         ddelta = compute_delta(average_beta)
+<         return average_beta, ddelta
+---
+>         return p_b_first_viable, average_beta
