@@ -45,17 +45,26 @@ def lll_simulator(dim, qrank, q, scale=1):
         slope.append(cur_norm)
         cur_norm += log_alpha
 
-    # head vectors contribute log(q/scale) to the log volume each
-    # log(vol) = head * log(q/scale) + sum_i slope[i]
-    head = floor((log_vol - sum(slope))/log(q/scale))
+    if len(slope) >= dim:
+        slope = slope[-dim:]
+        head = 0
+        tail = 0
+    else:
+        # head vectors contribute log(q/scale) to the log volume each
+        # log(vol) = head * log(q/scale) + sum_i slope[i]
+        head = floor((log_vol - sum(slope))/log(q/scale))
 
     # compute missing volume and distribute it on slope
     missing_vol = log_vol - head * log(q/scale) - sum(slope)
-    slope = [slope[0]] + [slope_i + missing_vol /
-                          (len(slope)-1) for slope_i in slope[1:]]
+    if len(slope) >= dim:
+        print(missing_vol)
+        slope = [slope_i + missing_vol/(len(slope)) for slope_i in slope]
+    else:
+        slope = [slope[0]] + [slope_i + missing_vol /
+                              (len(slope)-1) for slope_i in slope[1:]]
 
-    # compute number of remaining vectors will have unit norm
-    tail = dim - head - len(slope)
+        # compute number of remaining vectors will have unit norm
+        tail = dim - head - len(slope)
 
     # form log profile
     r = head * [log(q/scale)] + slope + tail * [0]
