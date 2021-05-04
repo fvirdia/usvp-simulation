@@ -74,7 +74,7 @@ class TikzPlot:
         self.elements.append(src)
         return src
 
-    def save(self, filename, xmin=None, xmax=None, ymin=None, ymax=None, axes_labels=None, figsize=None, xticks=None, yticks=None, **kwargs):
+    def save(self, filename, xmin=None, xmax=None, ymin=None, ymax=None, axes_labels=None, figsize=None, xticks=None, yticks=None, compile=True, **kwargs):
         if not self.xmin and xmin:
             self.xmin = xmin
         if not self.xmax and xmax:
@@ -143,11 +143,13 @@ class TikzPlot:
             tex += "\\input{\\detokenize{%s}}\n" % filename.split('/')[-1]
             tex += "\\end{document}\n"
             f.write(tex)
-        import os
-        os.chdir(path)
-        os.system(f'pdflatex {fn}.tex')
-        # os.system(f'rm {fn}_.tex {fn}_.aux {fn}_.log {fn}_.synctex.gz texput.log')
-        os.chdir("/".join([".." for _ in range(len(path.split("/")))]))
+
+        if compile:
+            import os
+            os.chdir(path)
+            os.system(f'pdflatex {fn}.tex')
+            # os.system(f'rm {fn}_.tex {fn}_.aux {fn}_.log {fn}_.synctex.gz texput.log')
+            os.chdir("/".join([".." for _ in range(len(path.split("/")))]))
 
 
     def __iadd__(self, other):
