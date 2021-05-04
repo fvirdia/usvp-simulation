@@ -23,10 +23,15 @@ def real_sd_simulate(usvp_simulator,
                      target_probability=.999,
                      prng_seed=0xdeadbeef,
                      verbose=True,
-                     account_for_sample_variance=False):
+                     account_for_sample_variance=False,
+                     embedding="baigal",
+                     suboptimal_embedding=False):
 
     n, q, sd, m, nu, secret_dist, beta_min, beta_max = params
-    d = n + m + 1
+    if embedding == "baigal":
+        d = n + m + 1
+    elif embedding == "kannan":
+        d = m + 1
 
     if account_for_sample_variance:
         secret_var_distribution = get_concrete_var_distribution(
@@ -43,7 +48,9 @@ def real_sd_simulate(usvp_simulator,
                      secret_dist, beta_min, beta_max)
         p_beta_winner_sd = usvp_simulator(sd_params, tours=tours, tour_distr=tour_distr, skip=skip,
                                           simulate_also_lll=simulate_also_lll, simulator=simulator,
-                                          target_probability=target_probability, prng_seed=prng_seed, verbose=verbose)
+                                          embedding=embedding, target_probability=target_probability,
+                                          prng_seed=prng_seed, verbose=verbose,
+                                          suboptimal_embedding=suboptimal_embedding)
 
         for beta in p_beta_winner_sd:
             p_beta_winner[beta] += p_beta_winner_sd[beta] * p_real_sd
@@ -58,12 +65,17 @@ def simulate_bkz(params,
                  simulator="CN11",
                  target_probability=.999,
                  prng_seed=0xdeadbeef,
-                 verbose=True):
+                 verbose=True,
+                 embedding="baigal",
+                 suboptimal_embedding=False):
     """ Simulate the success probability of BKZ on uSVP instance.
     """
 
     n, q, sd, m, nu, secret_dist, beta_min, beta_max = params
-    d = n+m+1
+    if embedding == "baigal":
+        d = n + m + 1
+    elif embedding == "kannan":
+        d = m + 1
 
     if verbose:
         print(n, q, sd, m, "tours", tours)
@@ -80,7 +92,8 @@ def simulate_bkz(params,
         tries = 10
         for BSW18_seed in range(tries):
             out = simulate_bkz(params, tours=tours, simulate_also_lll=simulate_also_lll,
-                               simulator="BSW18", target_probability=target_probability, prng_seed=1+BSW18_seed)
+                               simulator="BSW18", target_probability=target_probability,
+                               prng_seed=1+BSW18_seed, embedding=embedding)
             for key in out:
                 if key not in p_beta_winner:
                     p_beta_winner[key] = 0
@@ -92,7 +105,7 @@ def simulate_bkz(params,
     # compute prediction
 
     if simulate_also_lll:
-        lll_profile = LLLProfile(n, q, m, nu=nu)
+        lll_profile = LLLProfile(n, q, m, nu=nu, embedding=embedding)
     else:
         assert(nu == 1)
         from experiments import genLWEInstance
@@ -102,7 +115,8 @@ def simulate_bkz(params,
         with _sage_seed(1):
             fpylll.FPLLL.set_random_seed(2)  # sets underlying fplll prng
             random.seed(3)  # used by fpylll pruning
-            (_, _, _, _, BC, _) = genLWEInstance(n, q, sd, m, nu=1)
+            (_, _, _, _, BC, _) = genLWEInstance(n, q, sd, m, nu=1,
+                embedding=embedding, use_suboptimal_embedding=suboptimal_embedding)
             lll_profile = [BC.get_r(i, i) for i in range(d)]
 
     p_beta_winner = {}
@@ -141,9 +155,16 @@ def simulate_pbkz(params,
                   target_probability=.999,
                   verbose=True,
                   prng_seed=0xdeadbeef,
-                  use_gsa_for_lll=False):
+                  use_gsa_for_lll=False,
+                  embedding="baigal",
+                  suboptimal_embedding=False):
     """ Simulate the success probability of progressive BKZ on uSVP instance.
     """
+
+    if embedding != "baigal":
+        raise NotImplementedError("Kannan embedding not implemented for PBKZ")
+    if suboptimal_embedding:
+        raise NotImplementedError("Suboptimal embedding not implemented for PBKZ")
 
     n, q, sd, m, nu, secret_dist, beta_min, beta_max = params
     d = n+m+1

@@ -536,7 +536,7 @@ def inner(_it, _timer{init}):
         """
 
 
-def plot_previous_literature(simulator="CN11", simulate_also_lll=True, account_for_sample_variance=False, output_tikz=False):
+def plot_previous_literature(simulator="CN11", simulate_also_lll=True, account_for_sample_variance=False, embedding="kannan", suboptimal_embedding=True, output_tikz=False):
 
     colors = (x for x in ['red', 'blue', 'orange', 'green', 'purple', 'black',
                           'brown', 'violet'])
@@ -566,7 +566,8 @@ def plot_previous_literature(simulator="CN11", simulate_also_lll=True, account_f
         tours = 20
         p_beta_winner = real_sd_simulate(simulate_bkz, param, tours=tours,
                                          simulate_also_lll=simulate_also_lll, simulator=simulator,
-                                         account_for_sample_variance=account_for_sample_variance, verbose=False)
+                                         account_for_sample_variance=account_for_sample_variance, verbose=False,
+                                         embedding=embedding, suboptimal_embedding=suboptimal_embedding)
 
         sim_pmf = pmf_from_cmf(p_beta_winner, force=True)
         sim_avg_beta = kth_moment(sim_pmf, 1)
@@ -596,11 +597,13 @@ def plot_previous_literature(simulator="CN11", simulate_also_lll=True, account_f
                 linestyle="--", legend_label="$n = %d, \\tau = %d$" % (n, tours))
 
     if output_tikz:
-        tg.save("plots/plain/previous-exps-simlll-%s%s.tikz" % (
+        tg.save("plots/plain/previous-exps-%s%s-simlll-%s%s.tikz" % (
+            embedding, "suboptimal-" if suboptimal_embedding else "",
             simulate_also_lll, "-acc-samp-var" if account_for_sample_variance else ""),
             figsize=[10, 3], axes_labels=['$\\beta$','$P{[B\\leq\\beta]}$'])
     else:
-        save(g, "plots/plain/previous-exps-simlll-%s%s.pdf" % (
+        save(g, "plots/plain/previous-exps-%s%s-simlll-%s%s.pdf" % (
+            embedding, "suboptimal-" if suboptimal_embedding else "",
             simulate_also_lll, "-acc-samp-var" if account_for_sample_variance else ""),
             figsize=[10, 3], axes_labels=['$\\beta$','$P{[B\\leq\\beta]}$'])
 
@@ -682,7 +685,7 @@ if __name__ == "__main__":
     pbkz_plots("full-lll", simulator="CN11", max_tau=None, output_tikz=args.tikz)
 
     # Figure 4
-    plot_previous_literature(simulator="CN11", simulate_also_lll=True, output_tikz=args.tikz)
+    plot_previous_literature(simulator="CN11", simulate_also_lll=True, embedding="kannan", suboptimal_embedding=False, output_tikz=args.tikz)
 
     # Figure 5
     print("Fig 5, BKZ 2.0 data from here")
