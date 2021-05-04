@@ -10,6 +10,7 @@ from utilities import bcolors
 from experimental_data_list import bkz_data, pbkz_data
 from probabilities import pmf_from_cmf, kth_moment
 from usvp_simulation import simulate_bkz, simulate_pbkz, real_sd_simulate
+from tikz import TikzPlot
 
 def plot_experiments(fn, label, progressive=False, color=None, marker="x", return_cmf=False):
     colors = (x for x in ['red', 'blue', 'orange', 'green', 'purple', 'black',
@@ -17,6 +18,7 @@ def plot_experiments(fn, label, progressive=False, color=None, marker="x", retur
 
     # generate plots
     g = line([])
+    tg = TikzPlot(legend_pos="north west")
 
     with open(fn) as f:
         res = json.load(f)
@@ -44,15 +46,17 @@ def plot_experiments(fn, label, progressive=False, color=None, marker="x", retur
             else:
                 tag = exp
             g += line(prof, color=next(colors) if not color else color,
-                      linestyle=" ", marker=marker)  # , legend_label=tag)
+                linestyle=" ", marker=marker)  #, legend_label=tag)
+            tg.line(prof, color=next(colors) if not color else color,
+                linestyle=" ", marker=marker)  #, legend_label=tag.replace('${', '\\text${'),)
 
     if return_cmf:
         cmf = {}
         for beta, prob in prof:
             cmf[beta] = prob
-        return g, cmf
+        return g, tg, cmf
 
-    return g
+    return g, tg
 
 
 def gen_plots(data, usvp_simulator, output_dir,
@@ -65,14 +69,16 @@ def gen_plots(data, usvp_simulator, output_dir,
               max_tau=None,
               save_plots=True,
               mixed_plots=False,
-              account_for_sample_variance=False):
+              account_for_sample_variance=False,
+              output_tikz=False):
 
-    axes_labels = ['$\\beta$', '$P[B\\leq\\beta]$']
+    axes_labels = ['$\\beta$', '$P{[B\\leq\\beta]}$']
     figsize = [6, 4]
     font_size = 15
 
     if plot_by_dimension:
         plots_by_tour = {}
+        tplots_by_tour = {}
         tour_col = {
             1: 'black',
             5: 'blue',
@@ -98,8 +104,10 @@ def gen_plots(data, usvp_simulator, output_dir,
     for entry in data:
         try:
             fn, tours_fn, label, pars = entry
+            tlabel = label.replace(', ', ',\\ ')
         except:
             fn, label, pars = entry
+            tlabel = label.replace(', ', ',\\ ')
             tours_fn = None
 
         if len(pars) == 6:
@@ -118,6 +126,8 @@ def gen_plots(data, usvp_simulator, output_dir,
         if mixed_plots:
             label = "${%sBKZ},\\,\\tau = %d$" % (
                 "Prog.\\," if progressive else "", tau)
+            tlabel = "$\\text{%sBKZ},\\,\\tau = %d$" % (
+                "Prog.\\," if progressive else "", tau)
 
         secret_dist = "noise"
         params = n, q, sd, m, nu, secret_dist, beta_min, beta_max
@@ -127,11 +137,14 @@ def gen_plots(data, usvp_simulator, output_dir,
 
         if plot_by_dimension and n not in plots_by_tour:
             plots_by_tour[n] = line([])
+        if plot_by_dimension and n not in tplots_by_tour:
+            tplots_by_tour[n] = TikzPlot(legend_pos="north west")
 
         if not plot_by_dimension:
             g = line([])
+            tg = TikzPlot(legend_pos="north west")
             if fn:
-                gg, cmf_exp = plot_experiments(
+                gg, tgg, cmf_exp = plot_experiments(
                     fn, f"Exp, {label}", return_cmf=True, progressive=progressive)
                 # print("extrapolating mean from data")
                 pmf_exp = pmf_from_cmf(cmf_exp, force=True)
@@ -139,6 +152,7 @@ def gen_plots(data, usvp_simulator, output_dir,
                 exp_avg_beta_sqr = kth_moment(pmf_exp, 2)
                 exp_stddev_beta = sqrt(exp_avg_beta_sqr - exp_avg_beta**2)
                 g += gg
+                tg += tgg
 
         for tours in [tau]:
             import json
@@ -158,7 +172,7 @@ def gen_plots(data, usvp_simulator, output_dir,
             sim_stddev_beta = sqrt(sim_avg_beta_sqr - sim_avg_beta**2)
             if plot_by_dimension:
                 if fn:
-                    gg, cmf_exp = plot_experiments(fn,
+                    gg, tgg, cmf_exp = plot_experiments(fn,
                                                    f"Exp, {label}", color=tour_col[tours],
                                                    marker='x' if skip == 1 else tour_marker[tours],
                                                    return_cmf=True, progressive=progressive)
@@ -168,12 +182,20 @@ def gen_plots(data, usvp_simulator, output_dir,
                     exp_avg_beta_sqr = kth_moment(pmf_exp, 2)
                     exp_stddev_beta = sqrt(exp_avg_beta_sqr - exp_avg_beta**2)
                     plots_by_tour[n] += gg
+                    tplots_by_tour[n] += tgg
                 if skip == 1:
                     plots_by_tour[n] += line(p_beta_winner.items(),
                                              color=tour_col[tours],  legend_label=f"{label}", linestyle="--")
+                    tplots_by_tour[n].line(p_beta_winner.items(),
+                                             color=tour_col[tours],  legend_label=f"{tlabel}", linestyle="--")
                 else:
                     plots_by_tour[n] += line(p_beta_winner.items(),
                                              color=tour_col[tours],  legend_label=f"{label}", linestyle=" ", marker="o",
+                                             # markerfacecolor="white", markeredgecolor=tour_col[tours]
+                                             alpha=.5
+                                             )
+                    tplots_by_tour[n].line(p_beta_winner.items(),
+                                             color=tour_col[tours],  legend_label=f"{tlabel}", linestyle=" ", marker="o",
                                              # markerfacecolor="white", markeredgecolor=tour_col[tours]
                                              alpha=.5
                                              )
@@ -192,18 +214,28 @@ def gen_plots(data, usvp_simulator, output_dir,
                 if plot_mean:
                     plots_by_tour[n] += line([(sim_avg_beta, 0), (sim_avg_beta, 1)],
                                              color=tour_col[tours], linestyle="--")
+                    tplots_by_tour[n].line([(sim_avg_beta, 0), (sim_avg_beta, 1)],
+                                             color=tour_col[tours], linestyle="--")
                     if fn:
                         plots_by_tour[n] += line([(exp_avg_beta, 0),
                                                   (exp_avg_beta, 1)], color=tour_col[tours])
+                        tplots_by_tour[n].line([(exp_avg_beta, 0),
+                                                (exp_avg_beta, 1)], color=tour_col[tours])
             else:
                 if skip == 1:
                     g += line(p_beta_winner.items(),
                               legend_label=f"{label}", color="green", linestyle="--")
+                    tg.line(p_beta_winner.items(),
+                            legend_label=f"{tlabel}", color="green", linestyle="--")
                 else:
                     g += line(p_beta_winner.items(), legend_label=f"{label}", color="green", linestyle=" ", marker="o",
                               # markerfacecolor="white", markeredgecolor="green",
                               alpha=.5,
                               )
+                    tg.line(p_beta_winner.items(), legend_label=f"{tlabel}", color="green", linestyle=" ", marker="o",
+                            # markerfacecolor="white", markeredgecolor="green",
+                            alpha=.5,
+                            )
                 print(f"Sim mean {sim_avg_beta}")
                 print(f"Sim stdv {sim_stddev_beta}")
                 if fn:
@@ -212,72 +244,85 @@ def gen_plots(data, usvp_simulator, output_dir,
                 if plot_mean:
                     g += line([(sim_avg_beta, 0), (sim_avg_beta, 1)],
                               color="green")
+                    tg.line([(sim_avg_beta, 0), (sim_avg_beta, 1)],
+                              color="green")
                     if fn:
                         g += line([(exp_avg_beta, 0),
                                    (exp_avg_beta, 1)], color="red")
+                        tg.line([(exp_avg_beta, 0),
+                                 (exp_avg_beta, 1)], color="red")
 
         if not plot_by_dimension and save_plots:
             safe_tag = label.replace(
                 '/', '-').replace('τ', 'tau').replace('\\', '')
             g.set_legend_options(font_size=font_size)
-            save(g, format_string.format(dir=output_dir, tag=safe_tag),
-                 dpi=300, ymin=0, ymax=1, xmax=beta_max+1, axes_labels=axes_labels, figsize=figsize)
+            if output_tikz:
+                tg.save(format_string.format(dir=output_dir, tag=safe_tag, ext="tikz"),
+                        dpi=300, ymin=0, ymax=1, xmax=beta_max+1, axes_labels=axes_labels, figsize=figsize)
+            else:
+                save(g, format_string.format(dir=output_dir, tag=safe_tag, ext="pdf"),
+                     dpi=300, ymin=0, ymax=1, xmax=beta_max+1, axes_labels=axes_labels, figsize=figsize)
 
     if plot_by_dimension:
         if save_plots:
-            for n, g in plots_by_tour.items():
-                g.set_legend_options(font_size=font_size)
-                save(g, format_string.format(dir=output_dir, n=n),
-                     dpi=300, ymin=0, ymax=1, xmax=beta_max+1, axes_labels=axes_labels, figsize=figsize)
-        return plots_by_tour
+            if output_tikz:
+                for n, tg in tplots_by_tour.items():
+                    tg.save(format_string.format(dir=output_dir, n=n, ext="tikz"),
+                        dpi=300, ymin=0, ymax=1, xmax=beta_max+1, axes_labels=axes_labels, figsize=figsize)
+            else:
+                for n, g in plots_by_tour.items():
+                    g.set_legend_options(font_size=font_size)
+                    save(g, format_string.format(dir=output_dir, n=n, ext="pdf"),
+                         dpi=300, ymin=0, ymax=1, xmax=beta_max+1, axes_labels=axes_labels, figsize=figsize)
+        return plots_by_tour, tplots_by_tour
 
 
-def bkz_plots(experiments, simulator="CN11", plot_mean=False, max_tau=None, account_for_sample_variance=False):
+def bkz_plots(experiments, simulator="CN11", plot_mean=False, max_tau=None, account_for_sample_variance=False, output_tikz=False):
     # problem parameters
     data = bkz_data(experiments)
 
-    gen_plots(data, simulate_bkz, "plots/plain/",
+    gen_plots(data, simulate_bkz, "plots/plain",
               plot_by_dimension=True, plot_mean=plot_mean, simulate_also_lll=True,
-              format_string="{dir}/n-{n}-%s-using-%s%s%s.pdf" % (
+              format_string="{dir}/n-{n}-%s-using-%s%s%s.{ext}" % (
                   experiments, simulator, "-max-tau-%d" % max_tau if max_tau else "",
                   "-acc-samp-var" if account_for_sample_variance else ""
               ),
-              progressive=False, simulator=simulator, max_tau=max_tau, account_for_sample_variance=account_for_sample_variance)
+              progressive=False, simulator=simulator, max_tau=max_tau, account_for_sample_variance=account_for_sample_variance, output_tikz=output_tikz)
 
     # One by one plots
-    # gen_plots(data, simulate_bkz, "plots/plain/",
+    # gen_plots(data, simulate_bkz, "plots/plain",
     #     plot_by_dimension=False, plot_mean=plot_mean, simulate_also_lll=True,
-    #     format_string="{dir}/{tag}-%s-using-%s%s%s.pdf" % (
+    #     format_string="{dir}/{tag}-%s-using-%s%s%s.{ext}" % (
     #         experiments, simulator, "-max-tau-%d" % max_tau if max_tau else "",
     #         "-acc-samp-var" if account_for_sample_variance else ""
     #     ),
-    #     progressive=False, simulator=simulator, max_tau=max_tau, account_for_sample_variance=account_for_sample_variance)
+    #     progressive=False, simulator=simulator, max_tau=max_tau, account_for_sample_variance=account_for_sample_variance, output_tikz=output_tikz)
 
 
-def pbkz_plots(experiments, simulator="CN11", plot_mean=False, max_tau=None, account_for_sample_variance=False):
+def pbkz_plots(experiments, simulator="CN11", plot_mean=False, max_tau=None, account_for_sample_variance=False, output_tikz=False):
     # problem parameters
     data = pbkz_data(experiments)
 
     print(f"{bcolors.HEADER}Progressive BKZ{bcolors.ENDC}")
-    gen_plots(data, simulate_pbkz, "plots/progressive/",
+    gen_plots(data, simulate_pbkz, "plots/progressive",
               plot_by_dimension=True, plot_mean=plot_mean, simulate_also_lll=True,
-              format_string="{dir}/n-{n}-%s-using-%s%s%s.pdf" % (
+              format_string="{dir}/n-{n}-%s-using-%s%s%s.{ext}" % (
                   experiments, simulator, "-max-tau-%d" % max_tau if max_tau else "",
                   "-acc-samp-var" if account_for_sample_variance else ""
               ),
-              progressive=True, simulator=simulator, max_tau=max_tau, account_for_sample_variance=account_for_sample_variance)
+              progressive=True, simulator=simulator, max_tau=max_tau, account_for_sample_variance=account_for_sample_variance, output_tikz=output_tikz)
 
     # One by one plots
-    # gen_plots(data, simulate_pbkz, "plots/progressive/",
+    # gen_plots(data, simulate_pbkz, "plots/progressive",
     #     plot_by_dimension=False, plot_mean=plot_mean, simulate_also_lll=True,
-    #     format_string="{dir}/{tag}-%s-using-%s%s%s.pdf" % (
+    #     format_string="{dir}/{tag}-%s-using-%s%s%s.{ext}" % (
     #         experiments, simulator, "-max-tau-%d" % max_tau if max_tau else "",
     #         "-acc-samp-var" if account_for_sample_variance else ""
     #     ),
-    #     progressive=True, simulator=simulator, max_tau=max_tau, account_for_sample_variance=account_for_sample_variance)
+    #     progressive=True, simulator=simulator, max_tau=max_tau, account_for_sample_variance=account_for_sample_variance, output_tikz=output_tikz)
 
 
-def bkz_and_pbkz_plots(experiments, simulator="CN11", plot_mean=False, max_tau=None, account_for_sample_variance=False):
+def bkz_and_pbkz_plots(experiments, simulator="CN11", plot_mean=False, max_tau=None, account_for_sample_variance=False, output_tikz=False):
     data_bkz = bkz_data(experiments)
     data_pbkz = pbkz_data(experiments)
     data_pbkz_tau1 = []
@@ -301,26 +346,27 @@ def bkz_and_pbkz_plots(experiments, simulator="CN11", plot_mean=False, max_tau=N
             data_pbkz_tau1.append(entry)
 
     print(f"{bcolors.HEADER}Mixed plots{bcolors.ENDC}")
-    bkz_plots = {}
-    bkz_plots = gen_plots(data_bkz, simulate_bkz, "plots/plain/",
+
+    bkz_plots, tbkz_plots = gen_plots(data_bkz, simulate_bkz, "plots/plain",
                           plot_by_dimension=True, plot_mean=plot_mean, simulate_also_lll=True,
-                          format_string="{dir}/n-{n}-%s-using-%s.pdf" % (
+                          format_string="{dir}/n-{n}-%s-using-%s.{ext}" % (
                               experiments, simulator),
                           progressive=False, simulator=simulator, max_tau=max_tau, save_plots=False,
                           mixed_plots=True, account_for_sample_variance=account_for_sample_variance)
 
-    pbkz_plots = gen_plots(data_pbkz_tau1, simulate_pbkz, "plots/progressive/",
+    pbkz_plots, tpbkz_plots = gen_plots(data_pbkz_tau1, simulate_pbkz, "plots/progressive",
                            plot_by_dimension=True, plot_mean=plot_mean, simulate_also_lll=True,
-                           format_string="{dir}/n-{n}-%s-using-%s.pdf" % (
+                           format_string="{dir}/n-{n}-%s-using-%s.{ext}" % (
                                experiments, simulator),
                            progressive=True, simulator=simulator, max_tau=max_tau, save_plots=False,
                            mixed_plots=True, account_for_sample_variance=account_for_sample_variance)
 
     font_size = 15
-    axes_labels = ['$\\beta$', '$P[B\\leq\\beta]$']
+    axes_labels = ['$\\beta$', '$P{[B\\leq\\beta]}$']
     figsize = [6, 4]
     plots = {}
-    format_string = "plots/mixed/n-{n}-%s-using-%s%s.pdf" % (
+    tplots = {}
+    format_string = "plots/mixed/n-{n}-%s-using-%s%s.{ext}" % (
         experiments, simulator, "-acc-samp-var" if account_for_sample_variance else ""
     )
 
@@ -331,15 +377,29 @@ def bkz_and_pbkz_plots(experiments, simulator="CN11", plot_mean=False, max_tau=N
             g.set_legend_options(font_size=font_size)
             plots[n] += g
 
-    for n, g in plots.items():
-        save(g, format_string.format(n=n),
-             ymin=0, ymax=1, xmin=38, xmax=70,
-             axes_labels=axes_labels, figsize=figsize,
-             #  title=f"$n = {n}$",
-             )
+    for plot_set in [tpbkz_plots, tbkz_plots]:
+        for n, g in plot_set.items():
+            if n not in tplots:
+                tplots[n] = TikzPlot(legend_pos="north west")
+            tplots[n] += g
+
+    if output_tikz:
+        for n, g in tplots.items():
+            g.save(format_string.format(n=n, ext="tikz"),
+                ymin=0, ymax=1, xmin=38, xmax=70,
+                axes_labels=axes_labels, figsize=figsize,
+                #  title=f"$n = {n}$",
+            )
+    else:
+        for n, g in plots.items():
+            save(g, format_string.format(n=n, ext="pdf"),
+                ymin=0, ymax=1, xmin=38, xmax=70,
+                axes_labels=axes_labels, figsize=figsize,
+                #  title=f"$n = {n}$",
+            )
 
 
-def compare_vs_lwe_side_channel(output_dir="plots/progressive/vs-leaky/", simulate_also_lll=True, simulator="CN11"):
+def compare_vs_lwe_side_channel(output_dir="plots/progressive/vs-leaky", simulate_also_lll=True, simulator="CN11", output_tikz=False):
     from DSDGR20_warpper import simulate_pbkz as sim_pbkz
     import timeit
     # allow timeit to return function return value, https://stackoverflow.com/a/40385994
@@ -376,11 +436,11 @@ def inner(_it, _timer{init}):
         params = n, q, sd, m, nu, tau, beta_min, beta_max
         data.append((f"{tag}, $\\tau = {tau}$", params))
 
-    axes_labels = ['$\\beta$', '$P[B\\leq\\beta]$']
+    axes_labels = ['$\\beta$', '$P{[B\\leq\\beta]}$']
     figsize = [6, 4]
     font_size = 15
 
-    format_string = "{dir}/{tag}-vs-D-SDGR20-using-%s.pdf" % simulator
+    format_string = "{dir}/{tag}-vs-D-SDGR20-using-%s.{ext}" % simulator
 
     for label, pars in data:
         try:
@@ -394,6 +454,7 @@ def inner(_it, _timer{init}):
         params = n, q, sd, m, nu, secret_dist, beta_min, beta_max
 
         g = line([])
+        tg = TikzPlot(legend_pos="north west")
 
         print("Simulator\ttime\tmean succ. β")
 
@@ -410,6 +471,13 @@ def inner(_it, _timer{init}):
                       linestyle="--",
                       color="purple" if use_gsa_for_lll else "green",
                       thickness=line_thickness)
+            tg.line(p_beta_winner.items(),
+                    legend_label="this work%s" % (
+                        " (GSA for LLL)" if use_gsa_for_lll else ""),
+                    linestyle="--" if use_gsa_for_lll else " ",
+                    marker="square*, mark size=1pt" if not use_gsa_for_lll else None,
+                    color="purple" if use_gsa_for_lll else "green",
+                    thickness=line_thickness)
             line_thickness -= 1
             pmf = pmf_from_cmf(p_beta_winner)
             print("ours%s\t%.1f s\t%.2f" % (
@@ -424,15 +492,25 @@ def inner(_it, _timer{init}):
                   linestyle="--",
                   color="blue",
                   thickness=line_thickness)
+        tg.line(old_p_beta_winner.items(),
+                  legend_label=f"[D-SDGR20]",
+                  linestyle="--",
+                  color="blue",
+                  thickness=line_thickness)
         pmf = pmf_from_cmf(old_p_beta_winner)
         print("[DSDGR20]\t%.1f s\t%.2f" % (time, kth_moment(pmf, 1)))
 
         safe_tag = label.replace(
             '/', '-').replace('τ', 'tau').replace('\\', '').replace(' ', '_').replace('$', '')
         g.set_legend_options(font_size=font_size)
-        save(g, format_string.format(dir=output_dir, tag=safe_tag), dpi=300,
-             ymin=0, ymax=1, xmin=beta_min, xmax=beta_max,
-             axes_labels=axes_labels, figsize=figsize)
+        if output_tikz:
+            tg.save(format_string.format(dir=output_dir, tag=safe_tag, ext="tikz"), dpi=300,
+                    ymin=0, ymax=1, xmin=beta_min, xmax=beta_max,
+                    axes_labels=axes_labels, figsize=figsize)
+        else:
+            save(g, format_string.format(dir=output_dir, tag=safe_tag, ext="pdf"), dpi=300,
+                 ymin=0, ymax=1, xmin=beta_min, xmax=beta_max,
+                 axes_labels=axes_labels, figsize=figsize)
         """
         Simulator	time	mean succ. β
         ours		0.0 s	57.25
@@ -458,7 +536,7 @@ def inner(_it, _timer{init}):
         """
 
 
-def plot_previous_literature(simulator="CN11", simulate_also_lll=True, account_for_sample_variance=False):
+def plot_previous_literature(simulator="CN11", simulate_also_lll=True, account_for_sample_variance=False, output_tikz=False):
 
     colors = (x for x in ['red', 'blue', 'orange', 'green', 'purple', 'black',
                           'brown', 'violet'])
@@ -482,6 +560,7 @@ def plot_previous_literature(simulator="CN11", simulate_also_lll=True, account_f
                           'brown', 'violet'])
 
     g = line([])
+    tg = TikzPlot(legend_pos="north west")
     for param in params:
         n, q, sd, m, nu, secret_dist, beta_min, beta_max = param
         tours = 20
@@ -511,10 +590,19 @@ def plot_previous_literature(simulator="CN11", simulate_also_lll=True, account_f
         g += line(p_beta_winner.items(), color=col,
                   linestyle="--", legend_label="$n = %d, \\tau = %d$" % (n, tours))
         g.set_legend_options(font_size=20)
+        tg.line(list(exp_cmfs[n].items()),
+                color=col, marker="x", linestyle=" ")
+        tg.line(p_beta_winner.items(), color=col,
+                linestyle="--", legend_label="$n = %d, \\tau = %d$" % (n, tours))
 
-    save(g, "plots/plain/previous-exps-simlll-%s%s.pdf" % (
-        simulate_also_lll, "-acc-samp-var" if account_for_sample_variance else ""),
-        figsize=[10, 3], axes_labels=['$\\beta$', '$P[B\\leq\\beta]$'])
+    if output_tikz:
+        tg.save("plots/plain/previous-exps-simlll-%s%s.tikz" % (
+            simulate_also_lll, "-acc-samp-var" if account_for_sample_variance else ""),
+            figsize=[10, 3], axes_labels=['$\\beta$','$P{[B\\leq\\beta]}$'])
+    else:
+        save(g, "plots/plain/previous-exps-simlll-%s%s.pdf" % (
+            simulate_also_lll, "-acc-samp-var" if account_for_sample_variance else ""),
+            figsize=[10, 3], axes_labels=['$\\beta$','$P{[B\\leq\\beta]}$'])
 
 
 def comparing_gsa_vs_sim():
@@ -577,39 +665,39 @@ def comparing_gsa_vs_sim():
         save(g, "deleteme-%d.png" % n, dpi=300)
 
 
-def reproduce_paper_data():
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--tikz', action='store_true', help="Generate plots using tikz and pdflatex")
+    args = parser.parse_args()
 
     # # Figure 1 -- takes the longest, disabled by default!
-    # compare_vs_lwe_side_channel(simulator="CN11")
+    # compare_vs_lwe_side_channel(simulator="CN11", output_tikz=args.tikz)
 
     # Figure 2
-    bkz_and_pbkz_plots("full-lll", simulator="CN11")
+    bkz_and_pbkz_plots("full-lll", simulator="CN11", output_tikz=args.tikz)
 
     # Figure 3
     print("Fig 5, Progressive BKZ data from here")
-    pbkz_plots("full-lll", simulator="CN11", max_tau=None)
+    pbkz_plots("full-lll", simulator="CN11", max_tau=None, output_tikz=args.tikz)
 
     # Figure 4
-    plot_previous_literature(simulator="CN11", simulate_also_lll=True)
+    plot_previous_literature(simulator="CN11", simulate_also_lll=True, output_tikz=args.tikz)
 
     # Figure 5
     print("Fig 5, BKZ 2.0 data from here")
-    bkz_plots("full-lll", simulator="CN11", max_tau=None)
+    bkz_plots("full-lll", simulator="CN11", max_tau=None, output_tikz=args.tikz)
 
     # Figure 6
-    pbkz_plots("bu-full-lll", simulator="CN11", max_tau=None)
+    pbkz_plots("bu-full-lll", simulator="CN11", max_tau=None, output_tikz=args.tikz)
 
     # Figure 8
-    pbkz_plots("good-sample-variance-skip-1", simulator="CN11", max_tau=10)
+    pbkz_plots("good-sample-variance-skip-1", simulator="CN11", max_tau=10, output_tikz=args.tikz)
 
     # Figure 9
-    bkz_plots("full-lll", simulator="BSW18", max_tau=None)
-    bkz_plots("full-lll", simulator="averagedBSW18", max_tau=None)
+    bkz_plots("full-lll", simulator="BSW18", max_tau=None, output_tikz=args.tikz)
+    bkz_plots("full-lll", simulator="averagedBSW18", max_tau=None, output_tikz=args.tikz)
 
     # Table 2
-    bkz_plots("crypto", simulator="CN11")
-    pbkz_plots("crypto", simulator="CN11")
-
-
-if __name__ == "__main__":
-    reproduce_paper_data()
+    bkz_plots("crypto", simulator="CN11", output_tikz=args.tikz)
+    pbkz_plots("crypto", simulator="CN11", output_tikz=args.tikz)

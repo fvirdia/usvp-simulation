@@ -10,6 +10,7 @@ from fpylll.tools.bkz_simulator import simulate as CN11_simulate
 from bkz_simulators.sim import LLLProfile
 from estimates import primal_estimate, delta_0f
 from probabilities import cmf_chi_sq
+from tikz import TikzPlot
 
 
 def gsa(beta, d, n, q, i=False):
@@ -85,9 +86,25 @@ def main():
         g += line([(d-beta_from_sim, 0), (d-beta_from_sim, log(fplll_cn11[0][0])/2)],
                   color="green", legend_label="$\\beta$, as predicted using [CN11]")
 
+        p = TikzPlot(grid="none")
+        p.line(gsa_line, color='red', axes_labels=[
+               "$i$", "$\\log{\\|\\mathbf{b}_i^*\\|}$"], legend_label="GSA")
+        p.line(sim_line, color='blue', legend_label="[CN11] simulation")
+        p.line(pit_line, color='violet',
+               legend_label="$\\mathbf{\\mathbb{E}}(\\|\\pi_{d-i+1}(\\mathbf{t})\\|)$")
+        p.line([(d-beta_from_gsa, 0), (d-beta_from_gsa, log(fplll_cn11[0][0])/2)],
+               color='black', legend_label="$\\beta$, as predicted with the GSA")
+        p.line([(d-beta_from_sim, 0), (d-beta_from_sim, log(fplll_cn11[0][0])/2)],
+               color="green", legend_label="$\\beta$, as predicted using [CN11]")
+
         if tag == "kyber512":
             save(g, f"plots/lwe-estimator-with-cn11/n{n}-{tag}.pdf",
-                 xmin=500, xmax=800, ymax=5, ymin=1)
+                 xmin=500, xmax=800, ymax=5, ymin=1
+                 )
+            p.save(f"plots/lwe-estimator-with-cn11/n{n}-{tag}.tikz",
+                   xmin=500, xmax=800, ymax=5, ymin=1, figsize=[10, 8], xticks=5, yticks=7
+                   )
+            return
 
         win_at_2016_gsa = cmf_chi_sq(
             gsa(beta, d, n, q)**2/sd**2, beta_from_gsa)

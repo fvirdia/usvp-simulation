@@ -15,6 +15,7 @@ This release includes
 - Sagemath 9.0+
 - git (optional, for getting a copy of the [DSDGR20] simulator and the [APS15] LWE estimator)
 - make (optional, simplifies setup)
+- pdflatex (optional, for generating plots using Tikz)
 
 The code was written and tested on Linux. It should also work fine on WSL for Windows and macOS.
 
@@ -51,6 +52,7 @@ To reproduce individual plots/tables, run
 - `sage stddev_in_practice.py`, to generate the variance of expected sample variance for the three distributions considered in our paper
 - `sage estimates.py`, to generate the LWE Estimator's numbers in Table 2
 - `sage reproduce.py`, to generate all other Figures and the simulation numbers in Table 2
+- `sage reproduce.py --tikz` will do the same as above, but use PdfLatex to generate the plots.
 
 ### LWE Estimator using the [CN11] simulator
 
